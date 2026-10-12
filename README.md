@@ -96,7 +96,7 @@ check, cable-corrected) onto a curve built from the first packs measured:
 It updates **live while a shade charges** (from the voltage at the shade now), shows
 **100 %** after a full charge, keeps the **end voltage** of a charge that stopped
 early, and switches to the shade's learned "now ~%" once it has a use-per-day. The
-column shows what each figure is based on, e.g. `~55 % · 13.04 V`, `~100 % · full`.
+column shows what each figure is based on, e.g. `~55 % · 13.04 V`, `~100 % · full`, `~95 % · estimated`.
 
 It's rough. It assumes ~2.5 Ah packs, and the voltage also depends on the charge
 current (a full pack draws little, so it reads lower). A full charge from low gives

@@ -77,7 +77,7 @@
                     {%- elif ' - full' in details and (not cw or not dw or dw >= cw) -%}
                       {%- set ns.p = 100 -%}{%- set live.src = 'full' -%}
                     {%- elif ln -%}
-                      {%- set ns.p = ln[0] | float -%}{%- set live.src = 'learned' -%}
+                      {%- set ns.p = ln[0] | float -%}{%- set live.src = 'estimated' -%}
                     {%- endif -%}
                     {%- set batt = ('~' ~ ((ns.p / 5) | round(0) * 5) | int ~ ' %' ~ ((' · ' ~ live.src) if live.src else '') ~ (' ⚡' if live.on else '')) if ns.p is not none else '—' -%}
               {%- set st = namespace(t='Idle') -%}

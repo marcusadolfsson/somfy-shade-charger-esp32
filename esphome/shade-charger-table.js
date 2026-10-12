@@ -196,7 +196,7 @@
       } else {
         const lm = /now ~(\d+)%/.exec(learnedFull);
         if (/ - full/.test(details) && when(details) >= when(checkWhen)) { pct = 100; src = "full"; }
-        else if (lm) { pct = parseFloat(lm[1]); src = "learned"; }
+        else if (lm) { pct = parseFloat(lm[1]); src = "estimated"; }
       }
       const batt = pct === null ? "" : "~" + (Math.round(pct / 5) * 5) + " %" + (src ? " \u00b7 " + src : "") + (live ? " \u26a1" : "");
 
