@@ -1,0 +1,305 @@
+# Lovelace "sections" view section that mirrors the charger's own web page.
+# Paste under a sections view's `sections:`. The battery % curve in the Shades
+# card is a copy of SOC in esphome/shade-charger-table.js -- keep them in sync.
+
+      # ============================================================
+      # Battery charger (ESP32) -- mirrors http://shade-charger.local
+      # ============================================================
+      - type: grid
+        column_span: 3
+        cards:
+          - type: heading
+            heading: Battery charger
+            icon: mdi:ev-plug-type1
+            badges:
+              - type: entity
+                entity: sensor.shade_charger_next_auto_check
+                name: Next check
+                show_state: true
+                show_icon: true
+          - type: markdown
+            grid_options: { columns: full }
+            visibility:
+              - condition: state
+                entity: binary_sensor.shade_charger_present
+                state: "off"
+            content: >-
+              The charger is offline. Its own page at http://shade-charger.local
+              works without HA once it is back.
+          - type: markdown
+            title: Shades
+            grid_options: { columns: full }
+            visibility:
+              - condition: state
+                entity: binary_sensor.shade_charger_present
+                state: "on"
+            content: |-
+              {% set s = states('sensor.shade_charger_status') %}
+              {% set q = states('sensor.shade_charger_queue') %}
+              {% set qitems = [] if q in ['empty', 'unknown', 'unavailable'] else q.split('; ') %}
+              {% set opts = state_attr('select.shade_charger_relay_1_shade', 'options') or [] %}
+              {% set curve = [[12.10, 0], [12.26, 9], [13.20, 67], [13.60, 100]] %}
+              | Shade | Status | Last check | Battery | Last charge | Learned |
+              |:--|:--|:--|:--|:--|:--|
+              {% for name in opts if name != '(none)' -%}
+              {%- set slug = name | lower | replace(' ', '_') -%}
+              {%- set line = states('sensor.shade_charger_' ~ slug) -%}
+              {%- set lfull = states('sensor.shade_charger_learned_' ~ slug) -%}
+              {%- set lp = lfull.split(' - checked ') -%}
+              {%- set learned = lp[0] | replace(' - use per day known after its next full charge', '') | replace('no completed charge yet', 'no full charge yet') -%}
+              {%- set check = lp[1] if lp | count > 1 else '' -%}
+              {%- set cm = check | regex_findall('^(.*?): ([0-9.]+) V$') -%}
+              {%- set check_when = cm[0][0] if cm else (check | replace(': no draw', ' (no draw)')) -%}
+              {%- set check_v = cm[0][1] | float(0) if cm else 0 -%}
+              {%- set cp = line.split(' - start ') -%}
+              {%- set details = cp[0] -%}
+              {%- set start_v = cp[1] | replace(' V', '') | float(0) if cp | count > 1 else 0 -%}
+              {%- set cw = strptime(check_when[:12], '%b %d %H:%M', none) -%}
+              {%- set dw = strptime(details[:12], '%b %d %H:%M', none) -%}
+              {%- set v = check_v if check_v > 0 and (start_v == 0 or (cw and dw and cw >= dw) or not dw) else start_v -%}
+              {%- set ns = namespace(p=none) -%}
+              {%- if v > 0 -%}
+                {%- if v <= curve[0][0] %}{% set ns.p = 0 %}{% elif v >= curve[-1][0] %}{% set ns.p = 100 %}
+                {%- else %}{% for i in range(1, curve | count) %}{% if ns.p is none and v <= curve[i][0] %}{% set ns.p = curve[i-1][1] + (curve[i][1] - curve[i-1][1]) * (v - curve[i-1][0]) / (curve[i][0] - curve[i-1][0]) %}{% endif %}{% endfor %}{% endif -%}
+              {%- endif -%}
+              {%- set batt = ('~' ~ ((ns.p / 5) | round(0) * 5) | int ~ ' %') if ns.p is not none else '—' -%}
+              {%- set st = namespace(t='Idle') -%}
+              {%- if s.startswith('FAULT') -%}
+                {%- set fm = s | regex_findall('^FAULT - (.+?) on (.+?), press') -%}
+                {%- set st.t = ('⛔ Fault: ' ~ fm[0][0]) if fm and fm[0][1] == name else 'Blocked (fault)' -%}
+              {%- elif s.startswith(name ~ ':') -%}
+                {%- set rest = s[name | length + 1:] | trim -%}
+                {%- set am = rest | regex_findall('^([0-9.]+) A \\(peak') -%}
+                {%- if 'paused' in rest %}{% set st.t = '⏸ Paused' %}{% elif 'resuming' in rest %}{% set st.t = '⚡ Resuming' %}{% elif 'checking' in rest %}{% set st.t = '🔎 Checking' %}{% elif 'starting' in rest %}{% set st.t = '⚡ Starting' %}{% elif am %}{% set st.t = '⚡ Charging ' ~ (am[0] | float | round(2)) ~ ' A' %}{% endif -%}
+              {%- endif -%}
+              {%- if st.t == 'Idle' -%}
+                {%- for it in qitems -%}
+                  {%- set k = it.split(': ') -%}
+                  {%- if st.t == 'Idle' and k[0] == name -%}
+                    {%- set what = k[1:] | join(': ') -%}
+                    {%- set st.t = 'Queued #' ~ loop.index ~ (' (check)' if what == 'check' else (', waits for ' ~ what[12:] if what.startswith('charge from') else '')) -%}
+                  {%- endif -%}
+                {%- endfor -%}
+              {%- endif -%}
+              {%- if st.t == 'Idle' and line | regex_search('NO DRAW|DROPPED OUT|TIME CAP|OVERCURRENT|sensor fault') %}{% set st.t = 'Idle ⚠️' %}{% endif -%}
+              | **{{ name }}** | {{ st.t }} | {{ check_when or '—' }} | {{ batt }} | {{ details or '—' }} | {{ learned }} |
+              {% endfor %}
+          # Now + queue in one card: the running job's figures, then the queue.
+          - type: markdown
+            title: Now & queue
+            grid_options: { columns: full }
+            visibility:
+              - condition: state
+                entity: binary_sensor.shade_charger_present
+                state: "on"
+            content: |-
+              {% set s = states('sensor.shade_charger_status') %}
+              {% set m = s | regex_findall('^(.+?): ([0-9.]+) A \(peak ([0-9.]+)\), ([0-9.]+) Ah, ([0-9]+) min$') %}
+              {% if m %}{% set shade, amps, peak, ah, mins = m[0] -%}
+              **⚡ {{ shade }}**: {{ amps }} A (peak {{ peak }}) · {{ ah }} Ah · {{ (mins | int) // 60 }}:{{ '%02d' | format((mins | int) % 60) }} · {{ states('sensor.shade_charger_charge_voltage') | float(0) | round(2) }} V at the charger
+              {%- elif s.startswith('FAULT') %}⚠️ **{{ s }}**
+              {%- else %}**Status:** {{ s }}{% endif %}
+
+              {% set s = states('sensor.shade_charger_status') %}
+              {% set q = states('sensor.shade_charger_queue') %}
+              {% set qitems = [] if q in ['empty', 'unknown', 'unavailable'] else q.split('; ') %}
+              {% set run = s | regex_findall('^(.+?): (?:[0-9.]+ A \\(peak|starting|checking|resuming|paused)') %}
+              {% if not run and not qitems %}
+              Queue is empty.
+              {% else %}
+              | # | Shade | Job | When |
+              |:-:|:--|:--|:--|
+              {% if run %}| ▶ | {{ run[0] }} | {{ 'check' if 'checking' in s else 'charge' }} | running now |
+              {% endif %}{% for it in qitems -%}
+              {%- set k = it.split(': ') -%}{%- set what = k[1:] | join(': ') -%}
+              | {{ loop.index }} | {{ k[0] }} | {{ 'check' if what == 'check' else 'charge' }} | {{ ('waits for ' ~ what[12:]) if what.startswith('charge from') else 'next up' }} |
+              {% endfor %}
+              {% endif %}
+
+              [Charger's own page ↗](http://shade-charger.local) (home network)
+          # Controls: compact tiles that press the charger's buttons.
+          - type: grid
+            columns: 6
+            square: false
+            grid_options: { columns: full }
+            visibility:
+              - condition: state
+                entity: binary_sensor.shade_charger_present
+                state: "on"
+            cards:
+              - type: tile
+                entity: button.shade_charger_charge_all
+                name: Charge all
+                icon: mdi:battery-charging-high
+                hide_state: true
+                tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_all } }
+                icon_tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_all } }
+              - type: tile
+                entity: button.shade_charger_check_all
+                name: Check all
+                icon: mdi:battery-heart-variant
+                hide_state: true
+                tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_check_all } }
+                icon_tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_check_all } }
+              - type: tile
+                entity: button.shade_charger_charge_queue_now
+                name: Charge queue now
+                icon: mdi:playlist-play
+                hide_state: true
+                tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_queue_now } }
+                icon_tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_queue_now } }
+              - type: tile
+                entity: button.shade_charger_stop
+                name: Stop
+                icon: mdi:stop-circle-outline
+                hide_state: true
+                tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_stop } }
+                icon_tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_stop } }
+              - type: tile
+                entity: button.shade_charger_clear_fault
+                name: Clear fault
+                icon: mdi:alert-remove-outline
+                hide_state: true
+                tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_clear_fault } }
+                icon_tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_clear_fault } }
+              - type: tile
+                entity: switch.shade_charger_pause_charging
+                name: Pause
+          - type: heading
+            heading: Charge one shade
+            heading_style: subtitle
+            visibility:
+              - condition: state
+                entity: binary_sensor.shade_charger_present
+                state: "on"
+          - type: grid
+            grid_options: { columns: full }
+            visibility:
+              - condition: state
+                entity: binary_sensor.shade_charger_present
+                state: "on"
+            columns: 4
+            square: false
+            cards:
+              - type: tile
+                entity: button.shade_charger_charge_living_room_left
+                name: Living Room Left
+                icon: mdi:battery-charging
+                hide_state: true
+                tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_living_room_left } }
+                icon_tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_living_room_left } }
+              - type: tile
+                entity: button.shade_charger_charge_living_room_center
+                name: Living Room Center
+                icon: mdi:battery-charging
+                hide_state: true
+                tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_living_room_center } }
+                icon_tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_living_room_center } }
+              - type: tile
+                entity: button.shade_charger_charge_living_room_right
+                name: Living Room Right
+                icon: mdi:battery-charging
+                hide_state: true
+                tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_living_room_right } }
+                icon_tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_living_room_right } }
+              - type: tile
+                entity: button.shade_charger_charge_living_room_north
+                name: Living Room North
+                icon: mdi:battery-charging
+                hide_state: true
+                tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_living_room_north } }
+                icon_tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_living_room_north } }
+              - type: tile
+                entity: button.shade_charger_charge_den
+                name: Den
+                icon: mdi:battery-charging
+                hide_state: true
+                tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_den } }
+                icon_tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_den } }
+              - type: tile
+                entity: button.shade_charger_charge_bedroom_2_left
+                name: Bedroom 2 Left
+                icon: mdi:battery-charging
+                hide_state: true
+                tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_bedroom_2_left } }
+                icon_tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_bedroom_2_left } }
+              - type: tile
+                entity: button.shade_charger_charge_bedroom_2_right
+                name: Bedroom 2 Right
+                icon: mdi:battery-charging
+                hide_state: true
+                tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_bedroom_2_right } }
+                icon_tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_bedroom_2_right } }
+              - type: tile
+                entity: button.shade_charger_charge_bedroom_3
+                name: Bedroom 3
+                icon: mdi:battery-charging
+                hide_state: true
+                tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_bedroom_3 } }
+                icon_tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_bedroom_3 } }
+          # One line per shade: the per-shade template sensors in templates.yaml
+          # carry the charger's reading only while that shade is connected.
+          - type: grid
+            columns: 2
+            square: false
+            grid_options: { columns: full }
+            cards:
+              - type: history-graph
+                title: Charge current per shade (24 h)
+                hours_to_show: 24
+                entities:
+                  - entity: sensor.shade_charger_current_living_room_left
+                    name: Living Room Left
+                  - entity: sensor.shade_charger_current_living_room_center
+                    name: Living Room Center
+                  - entity: sensor.shade_charger_current_living_room_right
+                    name: Living Room Right
+                  - entity: sensor.shade_charger_current_living_room_north
+                    name: Living Room North
+                  - entity: sensor.shade_charger_current_den
+                    name: Den
+                  - entity: sensor.shade_charger_current_bedroom_2_left
+                    name: Bedroom 2 Left
+                  - entity: sensor.shade_charger_current_bedroom_2_right
+                    name: Bedroom 2 Right
+                  - entity: sensor.shade_charger_current_bedroom_3
+                    name: Bedroom 3
+              - type: history-graph
+                title: Voltage at the shade (24 h)
+                hours_to_show: 24
+                entities:
+                  - entity: sensor.shade_charger_voltage_living_room_left
+                    name: Living Room Left
+                  - entity: sensor.shade_charger_voltage_living_room_center
+                    name: Living Room Center
+                  - entity: sensor.shade_charger_voltage_living_room_right
+                    name: Living Room Right
+                  - entity: sensor.shade_charger_voltage_living_room_north
+                    name: Living Room North
+                  - entity: sensor.shade_charger_voltage_den
+                    name: Den
+                  - entity: sensor.shade_charger_voltage_bedroom_2_left
+                    name: Bedroom 2 Left
+                  - entity: sensor.shade_charger_voltage_bedroom_2_right
+                    name: Bedroom 2 Right
+                  - entity: sensor.shade_charger_voltage_bedroom_3
+                    name: Bedroom 3
+          # What a check run does, with the live settings filled in.
+          - type: markdown
+            title: Auto check
+            grid_options: { columns: full }
+            content: |-
+              {% set every = states('number.shade_charger_auto_check_every') | int(0) %}
+              {% set hour = states('number.shade_charger_auto_charge_start') | int(0) %}
+              {% set until = states('number.shade_charger_auto_charge_stop') | int(8) %}
+              {% set below = states('number.shade_charger_charge_below') | float(0) %}
+              {% set pause = states('number.shade_charger_pause_minutes') | int(2) %}
+              {% set maxh = states('number.shade_charger_max_hours_per_shade') | float(8) %}
+              {% set hh = '%02d' | format(hour) %}{% set uu = '%02d' | format(until) %}
+              **Last run:** {{ states('sensor.shade_charger_last_check_run') }}
+
+              - **When:** {% if every > 0 %}every {{ every }} day{{ 's' if every != 1 }} at {{ hh }}:00, counted from the last check run (scheduled or *Check all*); next **{{ states('sensor.shade_charger_next_auto_check') }}**{% else %}off; *Check all* runs one now{% endif %}.
+              - **Checks first:** every shade is connected for 30 s and its voltage read (corrected for its cable), then disconnected.
+              - **Then charges** the shades under **{{ below }} V** (very roughly 70 %), **lowest voltage first**; each pack ends its own charge ({{ maxh | round(1) }} h per shade at most). No draw = skipped.
+              - **Window:** {% if until == hour %}automatic charges run any time{% else %}automatic charges run **{{ hh }}:00–{{ uu }}:00**; one still going at {{ uu }}:00 goes back to the front of the queue for the next night. *Charge queue now* ignores the window{% endif %}. Checks and manual charges run any time.
+              - **Moving a shade that's charging** still works: HA pauses the charge for {{ pause }} min and re-sends the command.

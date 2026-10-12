@@ -1,0 +1,188 @@
+# Template sensors for the shade charger. Add to your `template:` config (e.g.
+# `template: !include templates.yaml`). Entity ids assume the ESPHome device is
+# named "Shade Charger" and the shade names from shade-charger.yaml.
+
+- binary_sensor:
+    - name: "Shade Charger Present"
+      unique_id: shade_charger_present
+      icon: mdi:ev-plug-type1
+      state: "{{ has_value('sensor.shade_charger_status') }}"
+
+# =============================================
+# Shade charger: per-shade current and voltage, for one-line-per-shade graphs.
+# The charger has a single current/voltage reading; these copy it into the shade
+# that is connected right now (Status "<shade>: x A (peak..." / starting /
+# checking / resuming) and are unavailable otherwise, so each line only exists
+# while that shade is on the charger. Voltage is AT THE SHADE: board voltage minus
+# that shade's Cable resistance x current. Names give sensor.shade_charger_*_<shade>
+# (inside the InfluxDB include glob).
+# =============================================
+- sensor:
+    - name: "Shade charger current Living Room Left"
+      unique_id: shade_charger_current_living_room_left
+      unit_of_measurement: A
+      device_class: current
+      state_class: measurement
+      icon: mdi:current-dc
+      availability: >-
+        {{ states('sensor.shade_charger_status') | regex_match('^Living Room Left: (?:[0-9.]+ A \\(peak|starting|checking|resuming)') }}
+      state: "{{ states('sensor.shade_charger_charge_current') | float(0) | round(3) }}"
+    - name: "Shade charger voltage Living Room Left"
+      unique_id: shade_charger_voltage_living_room_left
+      unit_of_measurement: V
+      device_class: voltage
+      state_class: measurement
+      icon: mdi:flash-triangle-outline
+      availability: >-
+        {{ states('sensor.shade_charger_status') | regex_match('^Living Room Left: (?:[0-9.]+ A \\(peak|starting|checking|resuming)') }}
+      state: >-
+        {{ (states('sensor.shade_charger_charge_voltage') | float(0)
+             - states('number.shade_charger_cable_resistance_living_room_left') | float(0)
+               * states('sensor.shade_charger_charge_current') | float(0)) | round(2) }}
+    - name: "Shade charger current Living Room Center"
+      unique_id: shade_charger_current_living_room_center
+      unit_of_measurement: A
+      device_class: current
+      state_class: measurement
+      icon: mdi:current-dc
+      availability: >-
+        {{ states('sensor.shade_charger_status') | regex_match('^Living Room Center: (?:[0-9.]+ A \\(peak|starting|checking|resuming)') }}
+      state: "{{ states('sensor.shade_charger_charge_current') | float(0) | round(3) }}"
+    - name: "Shade charger voltage Living Room Center"
+      unique_id: shade_charger_voltage_living_room_center
+      unit_of_measurement: V
+      device_class: voltage
+      state_class: measurement
+      icon: mdi:flash-triangle-outline
+      availability: >-
+        {{ states('sensor.shade_charger_status') | regex_match('^Living Room Center: (?:[0-9.]+ A \\(peak|starting|checking|resuming)') }}
+      state: >-
+        {{ (states('sensor.shade_charger_charge_voltage') | float(0)
+             - states('number.shade_charger_cable_resistance_living_room_center') | float(0)
+               * states('sensor.shade_charger_charge_current') | float(0)) | round(2) }}
+    - name: "Shade charger current Living Room Right"
+      unique_id: shade_charger_current_living_room_right
+      unit_of_measurement: A
+      device_class: current
+      state_class: measurement
+      icon: mdi:current-dc
+      availability: >-
+        {{ states('sensor.shade_charger_status') | regex_match('^Living Room Right: (?:[0-9.]+ A \\(peak|starting|checking|resuming)') }}
+      state: "{{ states('sensor.shade_charger_charge_current') | float(0) | round(3) }}"
+    - name: "Shade charger voltage Living Room Right"
+      unique_id: shade_charger_voltage_living_room_right
+      unit_of_measurement: V
+      device_class: voltage
+      state_class: measurement
+      icon: mdi:flash-triangle-outline
+      availability: >-
+        {{ states('sensor.shade_charger_status') | regex_match('^Living Room Right: (?:[0-9.]+ A \\(peak|starting|checking|resuming)') }}
+      state: >-
+        {{ (states('sensor.shade_charger_charge_voltage') | float(0)
+             - states('number.shade_charger_cable_resistance_living_room_right') | float(0)
+               * states('sensor.shade_charger_charge_current') | float(0)) | round(2) }}
+    - name: "Shade charger current Living Room North"
+      unique_id: shade_charger_current_living_room_north
+      unit_of_measurement: A
+      device_class: current
+      state_class: measurement
+      icon: mdi:current-dc
+      availability: >-
+        {{ states('sensor.shade_charger_status') | regex_match('^Living Room North: (?:[0-9.]+ A \\(peak|starting|checking|resuming)') }}
+      state: "{{ states('sensor.shade_charger_charge_current') | float(0) | round(3) }}"
+    - name: "Shade charger voltage Living Room North"
+      unique_id: shade_charger_voltage_living_room_north
+      unit_of_measurement: V
+      device_class: voltage
+      state_class: measurement
+      icon: mdi:flash-triangle-outline
+      availability: >-
+        {{ states('sensor.shade_charger_status') | regex_match('^Living Room North: (?:[0-9.]+ A \\(peak|starting|checking|resuming)') }}
+      state: >-
+        {{ (states('sensor.shade_charger_charge_voltage') | float(0)
+             - states('number.shade_charger_cable_resistance_living_room_north') | float(0)
+               * states('sensor.shade_charger_charge_current') | float(0)) | round(2) }}
+    - name: "Shade charger current Den"
+      unique_id: shade_charger_current_den
+      unit_of_measurement: A
+      device_class: current
+      state_class: measurement
+      icon: mdi:current-dc
+      availability: >-
+        {{ states('sensor.shade_charger_status') | regex_match('^Den: (?:[0-9.]+ A \\(peak|starting|checking|resuming)') }}
+      state: "{{ states('sensor.shade_charger_charge_current') | float(0) | round(3) }}"
+    - name: "Shade charger voltage Den"
+      unique_id: shade_charger_voltage_den
+      unit_of_measurement: V
+      device_class: voltage
+      state_class: measurement
+      icon: mdi:flash-triangle-outline
+      availability: >-
+        {{ states('sensor.shade_charger_status') | regex_match('^Den: (?:[0-9.]+ A \\(peak|starting|checking|resuming)') }}
+      state: >-
+        {{ (states('sensor.shade_charger_charge_voltage') | float(0)
+             - states('number.shade_charger_cable_resistance_den') | float(0)
+               * states('sensor.shade_charger_charge_current') | float(0)) | round(2) }}
+    - name: "Shade charger current Bedroom 2 Left"
+      unique_id: shade_charger_current_bedroom_2_left
+      unit_of_measurement: A
+      device_class: current
+      state_class: measurement
+      icon: mdi:current-dc
+      availability: >-
+        {{ states('sensor.shade_charger_status') | regex_match('^Bedroom 2 Left: (?:[0-9.]+ A \\(peak|starting|checking|resuming)') }}
+      state: "{{ states('sensor.shade_charger_charge_current') | float(0) | round(3) }}"
+    - name: "Shade charger voltage Bedroom 2 Left"
+      unique_id: shade_charger_voltage_bedroom_2_left
+      unit_of_measurement: V
+      device_class: voltage
+      state_class: measurement
+      icon: mdi:flash-triangle-outline
+      availability: >-
+        {{ states('sensor.shade_charger_status') | regex_match('^Bedroom 2 Left: (?:[0-9.]+ A \\(peak|starting|checking|resuming)') }}
+      state: >-
+        {{ (states('sensor.shade_charger_charge_voltage') | float(0)
+             - states('number.shade_charger_cable_resistance_bedroom_2_left') | float(0)
+               * states('sensor.shade_charger_charge_current') | float(0)) | round(2) }}
+    - name: "Shade charger current Bedroom 2 Right"
+      unique_id: shade_charger_current_bedroom_2_right
+      unit_of_measurement: A
+      device_class: current
+      state_class: measurement
+      icon: mdi:current-dc
+      availability: >-
+        {{ states('sensor.shade_charger_status') | regex_match('^Bedroom 2 Right: (?:[0-9.]+ A \\(peak|starting|checking|resuming)') }}
+      state: "{{ states('sensor.shade_charger_charge_current') | float(0) | round(3) }}"
+    - name: "Shade charger voltage Bedroom 2 Right"
+      unique_id: shade_charger_voltage_bedroom_2_right
+      unit_of_measurement: V
+      device_class: voltage
+      state_class: measurement
+      icon: mdi:flash-triangle-outline
+      availability: >-
+        {{ states('sensor.shade_charger_status') | regex_match('^Bedroom 2 Right: (?:[0-9.]+ A \\(peak|starting|checking|resuming)') }}
+      state: >-
+        {{ (states('sensor.shade_charger_charge_voltage') | float(0)
+             - states('number.shade_charger_cable_resistance_bedroom_2_right') | float(0)
+               * states('sensor.shade_charger_charge_current') | float(0)) | round(2) }}
+    - name: "Shade charger current Bedroom 3"
+      unique_id: shade_charger_current_bedroom_3
+      unit_of_measurement: A
+      device_class: current
+      state_class: measurement
+      icon: mdi:current-dc
+      availability: >-
+        {{ states('sensor.shade_charger_status') | regex_match('^Bedroom 3: (?:[0-9.]+ A \\(peak|starting|checking|resuming)') }}
+      state: "{{ states('sensor.shade_charger_charge_current') | float(0) | round(3) }}"
+    - name: "Shade charger voltage Bedroom 3"
+      unique_id: shade_charger_voltage_bedroom_3
+      unit_of_measurement: V
+      device_class: voltage
+      state_class: measurement
+      icon: mdi:flash-triangle-outline
+      availability: >-
+        {{ states('sensor.shade_charger_status') | regex_match('^Bedroom 3: (?:[0-9.]+ A \\(peak|starting|checking|resuming)') }}
+      state: >-
+        {{ (states('sensor.shade_charger_charge_voltage') | float(0)
+             - states('number.shade_charger_cable_resistance_bedroom_3') | float(0)
+               * states('sensor.shade_charger_charge_current') | float(0)) | round(2) }}

@@ -1,0 +1,63 @@
+# Somfy motors ignore commands while their charger is connected. This pauses the
+# charger and re-sends any cover command aimed at the shade being charged.
+# Edit covers_by_shade to map each charger shade name to YOUR cover entities.
+
+- alias: "Shade charger - pause for a shade move"
+  id: shade_charger_pause_for_move
+  mode: queued
+  max: 10
+  description: >-
+    A Somfy motor ignores commands while its charger is connected. When any
+    move (dashboard, Pico, voice, automation) targets the shade that is being
+    charged -- directly, via its _bond entity, alias or a group containing it --
+    pause the charger (switch.shade_charger_pause_charging opens the relay and
+    freezes the run; it resumes by itself after "Pause minutes"), then re-send
+    the same command, since the first one was ignored. stop_cover is never
+    re-sent: on a stationary Somfy, "stop" means go to the My position.
+  triggers:
+    - trigger: event
+      event_type: call_service
+      event_data:
+        domain: cover
+  variables:
+    service: "{{ trigger.event.data.service }}"
+    sdata: "{{ trigger.event.data.service_data }}"
+    called: >-
+      {% set e = sdata.get('entity_id', []) %}
+      {{ [e] if e is string else (e | list) }}
+    status: "{{ states('sensor.shade_charger_status') }}"
+    charging: >-
+      {% set m = status | regex_findall('^(.+?): (?:[0-9.]+ A \\(peak|starting|checking|resuming)') %}
+      {{ m[0] if m else '' }}
+    covers_by_shade:
+      Living Room Left: [cover.living_room_shade_left, cover.living_room_shade_left_bond, cover.living_room_shade_left_alias, cover.living_room_group_shades, cover.living_room_group_shades_bond, cover.living_room_group_shades_alias]
+      Living Room Center: [cover.living_room_shade_center, cover.living_room_shade_center_bond, cover.living_room_shade_center_alias, cover.living_room_group_shades, cover.living_room_group_shades_bond, cover.living_room_group_shades_alias]
+      Living Room Right: [cover.living_room_shade_right, cover.living_room_shade_right_bond, cover.living_room_shade_right_alias, cover.living_room_group_shades, cover.living_room_group_shades_bond, cover.living_room_group_shades_alias]
+      Living Room North: [cover.living_room_shade_north, cover.living_room_shade_north_bond, cover.living_room_shade_north_alias, cover.living_room_group_shades, cover.living_room_group_shades_bond, cover.living_room_group_shades_alias]
+      Den: [cover.den_shade]
+      Bedroom 2 Left: [cover.bedroom_2_shade]
+      Bedroom 2 Right: [cover.bedroom_2_shade]
+      Bedroom 3: [cover.bedroom_3_shade]
+    hit: >-
+      {{ charging != '' and
+         (called | select('in', covers_by_shade.get(charging, [])) | list | count) > 0 }}
+  conditions:
+    - "{{ hit }}"
+    - "{{ service != 'stop_cover' }}"
+    # Already paused: this is our own re-send (or a second move) -- let it be.
+    - condition: state
+      entity_id: switch.shade_charger_pause_charging
+      state: "off"
+  actions:
+    - action: switch.turn_on
+      target:
+        entity_id: switch.shade_charger_pause_charging
+    # The charger acts on its next 2 s tick; wait for the relay to really open.
+    - wait_template: >-
+        {{ is_state('switch.shade_charger_pause_charging', 'on') and
+           states('sensor.shade_charger_charge_current') | float(1) < 0.05 }}
+      timeout: "00:00:06"
+      continue_on_timeout: true
+    - delay: "00:00:01"
+    - action: "cover.{{ service }}"
+      data: "{{ sdata }}"

@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 990" width="1200" height="990" role="img" aria-label="Wiring schematic: 12 V supply and buck converter powering the XIAO ESP32-C6 and relay coils; charge supply through the INA226 shunt to the relay COM bus; each relay's NO contact through a fuse to one shade."><style>
+.bx{fill:#F7FAFB;stroke:#8FA3AE;stroke-width:1.5}
+.t{fill:#18232C;font-family:"IBM Plex Sans",Helvetica,Arial,sans-serif;font-size:14px;font-weight:600}
+.s{fill:#5B6B76;font-family:"IBM Plex Mono",Menlo,Consolas,monospace;font-size:11.5px}
+.p{fill:#18232C;font-family:"IBM Plex Mono",Menlo,Consolas,monospace;font-size:11.5px}
+.w{fill:none;stroke-width:2.4;stroke-linejoin:round;stroke-linecap:round}
+.v12{stroke:#C8372D}.gnd{stroke:#24303A}.v5{stroke:#B8641A}.v33{stroke:#D98A1E}
+.sig{stroke:#1F7F98}.i2c{stroke:#2E8B57}.chg{stroke:#7A45B8}
+.j{stroke:none}.jv12{fill:#C8372D}.jgnd{fill:#24303A}.jchg{fill:#7A45B8}
+.pin{fill:#FFFFFF;stroke:#8FA3AE;stroke-width:1.2}
+.fuse{fill:#FFFFFF;stroke:#7A45B8;stroke-width:1.8}
+.nc{stroke:#5B6B76;stroke-width:1.4;stroke-dasharray:3 3;fill:none}
+</style><rect width="1200" height="990" fill="#FFFFFF"/>
+  <!-- ===== power rails ===== -->
+  <path class="w v12" d="M300 55 V 912"/>
+  <path class="w gnd" d="M320 95 V 960"/>
+  <text class="s" x="306" y="50">+12 V rail</text>
+  <text class="s" x="326" y="975">GND rail (common)</text>
+
+  <!-- ===== 12 V supply ===== -->
+  <rect class="bx" x="40" y="25" width="210" height="95" rx="8"/>
+  <text class="t" x="56" y="52">12 V DC supply</text>
+  <text class="s" x="56" y="72">relay coils + logic</text>
+  <circle class="pin" cx="250" cy="55" r="5"/><text class="p" x="238" y="59" text-anchor="end">+12V</text>
+  <circle class="pin" cx="250" cy="95" r="5"/><text class="p" x="238" y="99" text-anchor="end">GND</text>
+  <path class="w v12" d="M255 55 H 300"/><circle class="j jv12" cx="300" cy="55" r="4"/>
+  <path class="w gnd" d="M255 95 H 320"/><circle class="j jgnd" cx="320" cy="95" r="4"/>
+
+  <!-- ===== charge supply ===== -->
+  <rect class="bx" x="560" y="20" width="230" height="90" rx="8"/>
+  <text class="t" x="576" y="46">Charge supply</text>
+  <text class="s" x="576" y="66">13.3 V · 0.65–0.85 A, current-limited</text>
+  <text class="s" x="576" y="82">one shade at a time via the relays</text>
+  <circle class="pin" cx="620" cy="110" r="5"/><text class="p" x="630" y="104">+</text>
+  <circle class="pin" cx="740" cy="110" r="5"/><text class="p" x="728" y="104">−</text>
+  <path class="w chg" d="M620 115 V 150"/>
+  <path class="w gnd" d="M740 115 V 130 H 320"/><circle class="j jgnd" cx="320" cy="130" r="4"/>
+
+  <!-- ===== buck ===== -->
+  <rect class="bx" x="40" y="270" width="120" height="70" rx="8"/>
+  <text class="t" x="52" y="294">Buck</text>
+  <text class="s" x="52" y="312">12 V → 5 V</text>
+  <circle class="pin" cx="160" cy="288" r="4.5"/><text class="p" x="150" y="292" text-anchor="end" style="font-size:10px">IN+</text>
+  <circle class="pin" cx="160" cy="322" r="4.5"/><text class="p" x="150" y="326" text-anchor="end" style="font-size:10px">IN−</text>
+  <path class="w v12" d="M165 288 H 300"/><circle class="j jv12" cx="300" cy="288" r="4"/>
+  <path class="w gnd" d="M165 322 H 320"/><circle class="j jgnd" cx="320" cy="322" r="4"/>
+  <circle class="pin" cx="70" cy="340" r="4.5"/>
+  <path class="w v5" d="M70 345 V 365"/>
+  <text class="s" x="78" y="358">5 V</text>
+
+  <!-- ===== XIAO ESP32-C6 ===== -->
+  <rect class="bx" x="40" y="370" width="220" height="500" rx="10"/>
+  <text class="t" x="56" y="415">XIAO</text>
+  <text class="t" x="56" y="433">ESP32‑C6</text>
+  <!-- top power pins -->
+  <circle class="pin" cx="70" cy="370" r="5"/><text class="p" x="62" y="392">5V</text>
+  <circle class="pin" cx="125" cy="370" r="5"/><text class="p" x="114" y="392">GND</text>
+  <circle class="pin" cx="200" cy="370" r="5"/><text class="p" x="186" y="392">3V3</text>
+  <path class="w gnd" d="M125 365 V 352 H 320"/><circle class="j jgnd" cx="320" cy="352" r="4"/>
+  <path class="w v33" d="M200 365 V 200 H 560"/>
+  <!-- right-edge GPIO pins -->
+  <g>
+    <circle class="pin" cx="260" cy="400" r="5"/><text class="p" x="248" y="404" text-anchor="end">D0 · GPIO0</text>
+    <circle class="pin" cx="260" cy="444" r="5"/><text class="p" x="248" y="448" text-anchor="end">D1 · GPIO1</text>
+    <circle class="pin" cx="260" cy="488" r="5"/><text class="p" x="248" y="492" text-anchor="end">D2 · GPIO2</text>
+    <circle class="pin" cx="260" cy="532" r="5"/><text class="p" x="248" y="536" text-anchor="end">D3 · GPIO21</text>
+    <circle class="pin" cx="260" cy="576" r="5"/><text class="p" x="248" y="580" text-anchor="end">D4 · GPIO22</text>
+    <circle class="pin" cx="260" cy="620" r="5"/><text class="p" x="248" y="624" text-anchor="end">D5 · GPIO23</text>
+    <circle class="pin" cx="260" cy="664" r="5"/><text class="p" x="248" y="668" text-anchor="end">D6 · GPIO16</text>
+    <circle class="pin" cx="260" cy="708" r="5"/><text class="p" x="248" y="712" text-anchor="end">D7 · GPIO17</text>
+    <circle class="pin" cx="260" cy="752" r="5"/><text class="p" x="248" y="756" text-anchor="end">D8 · GPIO19</text>
+    <circle class="pin" cx="260" cy="796" r="5"/><text class="p" x="248" y="800" text-anchor="end">D9 · GPIO20</text>
+    <circle class="pin" cx="260" cy="840" r="5"/><text class="p" x="248" y="844" text-anchor="end">D10 · GPIO18</text>
+  </g>
+  <path class="nc" d="M265 664 H 330"/><text class="s" x="336" y="668">not connected (UART TX)</text>
+
+  <!-- relay signal lines -->
+  <path class="w sig" d="M265 400 H 600"/>
+  <path class="w sig" d="M265 444 H 600"/>
+  <path class="w sig" d="M265 488 H 600"/>
+  <path class="w sig" d="M265 532 H 600"/>
+  <path class="w sig" d="M265 708 H 600"/>
+  <path class="w sig" d="M265 752 H 600"/>
+  <path class="w sig" d="M265 796 H 600"/>
+  <path class="w sig" d="M265 840 H 600"/>
+
+  <!-- I2C -->
+  <path class="w i2c" d="M265 576 H 500 V 250 H 560"/>
+  <path class="w i2c" d="M265 620 H 525 V 275 H 560"/>
+  <text class="s" x="440" y="571">SDA</text>
+  <text class="s" x="440" y="615">SCL</text>
+
+  <!-- ===== INA226 ===== -->
+  <rect class="bx" x="560" y="150" width="220" height="140" rx="8"/>
+  <text class="t" x="640" y="200">INA226 (MJKDZ)</text>
+  <text class="s" x="640" y="218">shunt R002 = 0.002 Ω</text>
+  <text class="s" x="640" y="234">≈ 41 A · 1.25 mA steps</text>
+  <text class="s" x="640" y="250">V+ → Current −</text>
+  <text class="s" x="640" y="266">V− → GND</text>
+  <circle class="pin" cx="620" cy="150" r="5"/><text class="p" x="628" y="168">Current +</text>
+  <circle class="pin" cx="780" cy="180" r="5"/><text class="p" x="770" y="174" text-anchor="end">Current −</text>
+  <circle class="pin" cx="560" cy="200" r="5"/><text class="p" x="570" y="204" style="font-size:10.5px">VCC</text>
+  <circle class="pin" cx="560" cy="225" r="5"/><text class="p" x="570" y="229" style="font-size:10.5px">GND</text>
+  <circle class="pin" cx="560" cy="250" r="5"/><text class="p" x="570" y="254" style="font-size:10.5px">SDA</text>
+  <circle class="pin" cx="560" cy="275" r="5"/><text class="p" x="570" y="279" style="font-size:10.5px">SCL</text>
+  <path class="w gnd" d="M555 225 H 320"/><circle class="j jgnd" cx="320" cy="225" r="4"/>
+  <text class="s" x="790" y="166">V+ jumpered here</text>
+
+  <!-- COM bus -->
+  <path class="w chg" d="M785 180 H 880 V 830"/>
+  <text class="s" x="888" y="196">COM bus</text>
+  <text class="s" x="888" y="210">(after the shunt)</text>
+
+  <!-- ===== relay board ===== -->
+  <rect class="bx" x="600" y="370" width="240" height="510" rx="10"/>
+  <text class="t" x="660" y="620">AEDIKO 8‑ch</text>
+  <text class="t" x="660" y="638">12 V relay board</text>
+  <text class="s" x="660" y="658">trigger jumpers: HIGH</text>
+  <text class="s" x="660" y="674">outputs: COM + NO only</text>
+
+  <!-- channels: rows r = 400 444 488 532 708 752 796 840 -->
+  <g>
+    <!-- ch1 -->
+    <circle class="pin" cx="600" cy="400" r="5"/><text class="p" x="610" y="404">IN1</text>
+    <circle class="pin" cx="840" cy="390" r="4.5"/><text class="p" x="830" y="394" text-anchor="end">COM1</text>
+    <circle class="pin" cx="840" cy="410" r="4.5"/><text class="p" x="830" y="414" text-anchor="end">NO1</text>
+    <path class="w chg" d="M845 390 H 880"/><circle class="j jchg" cx="880" cy="390" r="4"/>
+    <!-- ch2 -->
+    <circle class="pin" cx="600" cy="444" r="5"/><text class="p" x="610" y="448">IN2</text>
+    <circle class="pin" cx="840" cy="434" r="4.5"/><text class="p" x="830" y="438" text-anchor="end">COM2</text>
+    <circle class="pin" cx="840" cy="454" r="4.5"/><text class="p" x="830" y="458" text-anchor="end">NO2</text>
+    <path class="w chg" d="M845 434 H 880"/><circle class="j jchg" cx="880" cy="434" r="4"/>
+    <!-- ch3 -->
+    <circle class="pin" cx="600" cy="488" r="5"/><text class="p" x="610" y="492">IN3</text>
+    <circle class="pin" cx="840" cy="478" r="4.5"/><text class="p" x="830" y="482" text-anchor="end">COM3</text>
+    <circle class="pin" cx="840" cy="498" r="4.5"/><text class="p" x="830" y="502" text-anchor="end">NO3</text>
+    <path class="w chg" d="M845 478 H 880"/><circle class="j jchg" cx="880" cy="478" r="4"/>
+    <!-- ch4 -->
+    <circle class="pin" cx="600" cy="532" r="5"/><text class="p" x="610" y="536">IN4</text>
+    <circle class="pin" cx="840" cy="522" r="4.5"/><text class="p" x="830" y="526" text-anchor="end">COM4</text>
+    <circle class="pin" cx="840" cy="542" r="4.5"/><text class="p" x="830" y="546" text-anchor="end">NO4</text>
+    <path class="w chg" d="M845 522 H 880"/><circle class="j jchg" cx="880" cy="522" r="4"/>
+    <!-- ch5 -->
+    <circle class="pin" cx="600" cy="708" r="5"/><text class="p" x="610" y="712">IN5</text>
+    <circle class="pin" cx="840" cy="698" r="4.5"/><text class="p" x="830" y="702" text-anchor="end">COM5</text>
+    <circle class="pin" cx="840" cy="718" r="4.5"/><text class="p" x="830" y="722" text-anchor="end">NO5</text>
+    <path class="w chg" d="M845 698 H 880"/><circle class="j jchg" cx="880" cy="698" r="4"/>
+    <!-- ch6 -->
+    <circle class="pin" cx="600" cy="752" r="5"/><text class="p" x="610" y="756">IN6</text>
+    <circle class="pin" cx="840" cy="742" r="4.5"/><text class="p" x="830" y="746" text-anchor="end">COM6</text>
+    <circle class="pin" cx="840" cy="762" r="4.5"/><text class="p" x="830" y="766" text-anchor="end">NO6</text>
+    <path class="w chg" d="M845 742 H 880"/><circle class="j jchg" cx="880" cy="742" r="4"/>
+    <!-- ch7 -->
+    <circle class="pin" cx="600" cy="796" r="5"/><text class="p" x="610" y="800">IN7</text>
+    <circle class="pin" cx="840" cy="786" r="4.5"/><text class="p" x="830" y="790" text-anchor="end">COM7</text>
+    <circle class="pin" cx="840" cy="806" r="4.5"/><text class="p" x="830" y="810" text-anchor="end">NO7</text>
+    <path class="w chg" d="M845 786 H 880"/><circle class="j jchg" cx="880" cy="786" r="4"/>
+    <!-- ch8 -->
+    <circle class="pin" cx="600" cy="840" r="5"/><text class="p" x="610" y="844">IN8</text>
+    <circle class="pin" cx="840" cy="830" r="4.5"/><text class="p" x="830" y="834" text-anchor="end">COM8</text>
+    <circle class="pin" cx="840" cy="850" r="4.5"/><text class="p" x="830" y="854" text-anchor="end">NO8</text>
+    <path class="w chg" d="M845 830 H 880"/><circle class="j jchg" cx="880" cy="830" r="4"/>
+  </g>
+
+  <!-- coil power -->
+  <circle class="pin" cx="660" cy="880" r="5"/><text class="p" x="652" y="900" text-anchor="end">DC+</text>
+  <circle class="pin" cx="740" cy="880" r="5"/><text class="p" x="750" y="900">DC−</text>
+  <path class="w v12" d="M660 885 V 912 H 300"/><circle class="j jv12" cx="300" cy="912" r="4"/>
+  <path class="w gnd" d="M740 885 V 935 H 320"/><circle class="j jgnd" cx="320" cy="935" r="4"/>
+  <text class="s" x="350" y="906">coil feed taps the 12 V rail — BEFORE the shunt</text>
+
+  <!-- ===== fuses + shade outputs ===== -->
+  <g>
+    <!-- for each channel: NO -> fuse -> shade + ; shade - -> return bus x=1180 -->
+    <path class="w chg" d="M845 410 H 905"/><rect class="fuse" x="905" y="403" width="40" height="14" rx="3"/><path class="w chg" d="M945 410 H 985"/>
+    <path class="w chg" d="M845 454 H 905"/><rect class="fuse" x="905" y="447" width="40" height="14" rx="3"/><path class="w chg" d="M945 454 H 985"/>
+    <path class="w chg" d="M845 498 H 905"/><rect class="fuse" x="905" y="491" width="40" height="14" rx="3"/><path class="w chg" d="M945 498 H 985"/>
+    <path class="w chg" d="M845 542 H 905"/><rect class="fuse" x="905" y="535" width="40" height="14" rx="3"/><path class="w chg" d="M945 542 H 985"/>
+    <path class="w chg" d="M845 718 H 905"/><rect class="fuse" x="905" y="711" width="40" height="14" rx="3"/><path class="w chg" d="M945 718 H 985"/>
+    <path class="w chg" d="M845 762 H 905"/><rect class="fuse" x="905" y="755" width="40" height="14" rx="3"/><path class="w chg" d="M945 762 H 985"/>
+    <path class="w chg" d="M845 806 H 905"/><rect class="fuse" x="905" y="799" width="40" height="14" rx="3"/><path class="w chg" d="M945 806 H 985"/>
+    <path class="w chg" d="M845 850 H 905"/><rect class="fuse" x="905" y="843" width="40" height="14" rx="3"/><path class="w chg" d="M945 850 H 985"/>
+    <text class="s" x="905" y="388">fuse 2 A</text>
+  </g>
+  <g>
+    <rect class="bx" x="985" y="384" width="170" height="40" rx="6"/><text class="p" x="997" y="408">1 · LR Left</text>
+    <rect class="bx" x="985" y="428" width="170" height="40" rx="6"/><text class="p" x="997" y="452">2 · LR Center</text>
+    <rect class="bx" x="985" y="472" width="170" height="40" rx="6"/><text class="p" x="997" y="496">3 · LR Right</text>
+    <rect class="bx" x="985" y="516" width="170" height="40" rx="6"/><text class="p" x="997" y="540">4 · LR North</text>
+    <rect class="bx" x="985" y="692" width="170" height="40" rx="6"/><text class="p" x="997" y="716">5 · Den</text>
+    <rect class="bx" x="985" y="736" width="170" height="40" rx="6"/><text class="p" x="997" y="760">6 · Bedroom 2 Left</text>
+    <rect class="bx" x="985" y="780" width="170" height="40" rx="6"/><text class="p" x="997" y="804">7 · Bedroom 2 Right</text>
+    <rect class="bx" x="985" y="824" width="170" height="40" rx="6"/><text class="p" x="997" y="848">8 · Bedroom 3</text>
+    <text class="s" x="985" y="372">shade charge port  + / −</text>
+  </g>
+  <!-- shade − returns -->
+  <path class="w gnd" d="M1155 398 H 1180"/><path class="w gnd" d="M1155 442 H 1180"/><path class="w gnd" d="M1155 486 H 1180"/><path class="w gnd" d="M1155 530 H 1180"/>
+  <path class="w gnd" d="M1155 706 H 1180"/><path class="w gnd" d="M1155 750 H 1180"/><path class="w gnd" d="M1155 794 H 1180"/><path class="w gnd" d="M1155 838 H 1180"/>
+  <path class="w gnd" d="M1180 398 V 958 H 320"/>
+  <circle class="j jgnd" cx="1180" cy="398" r="3.5"/><circle class="j jgnd" cx="1180" cy="442" r="3.5"/><circle class="j jgnd" cx="1180" cy="486" r="3.5"/><circle class="j jgnd" cx="1180" cy="530" r="3.5"/>
+  <circle class="j jgnd" cx="1180" cy="706" r="3.5"/><circle class="j jgnd" cx="1180" cy="750" r="3.5"/><circle class="j jgnd" cx="1180" cy="794" r="3.5"/><circle class="j jgnd" cx="1180" cy="838" r="3.5"/>
+  <circle class="j jgnd" cx="320" cy="958" r="4"/>
+  <text class="s" x="1040" y="952">all shade − back to GND</text>
+</svg>
