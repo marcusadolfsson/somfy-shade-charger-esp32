@@ -16,12 +16,13 @@ charging that happens overnight without anyone plugging cables in.
 
 - **Charges 8 shades from one charger**, one at a time, through relays. Each run
   goes to the charger, then the relay of the shade being charged, then its fuse.
-- **Weekly check, then charge the emptiest first.** Every shade is connected for
-  30 s and its voltage read (corrected for that shade's cable). Shades under a
-  threshold are queued, **lowest voltage first**.
+- **Check, then charge the emptiest first.** Every shade is connected for 30 s and
+  its voltage read (corrected for that shade's cable); shades under a threshold are
+  charged, **lowest voltage first**. Weekly on a schedule, or any time with
+  **Charge Now**.
 - **Charge window.** Automatic charges run between two hours (default 02:00–08:00).
-  A charge still running at the end stops and resumes the next night. Checks and
-  manual charges run any time; *Charge queue now* ignores the window.
+  A charge still running at the end stops and resumes the next night. *Charge Now*
+  and a shade's own Charge button ignore the window.
 - **Knows when a pack is full, or when it isn't.** The pack ends its own charge:
   the current steps to 0 near the top (seen from 0.31–0.52 A). It counts as
   **full** when that happens at ≥ 13.4 V at the shade, after the current has already
@@ -35,8 +36,8 @@ charging that happens overnight without anyone plugging cables in.
   capacity floor), Ah used per day, an estimated charge level, and a voltage→Ah fit
   once there are enough charges.
 - **Stop holds, it doesn't clear.** *Stop* ends the running job, puts it back at the
-  front of the queue and holds the queue; *Charge queue now* resumes it (as does any
-  manual *Charge*). *Clear queue* empties it.
+  front of the queue and holds the queue; *Charge Now* (or a shade's Charge button)
+  resumes it. *Clear queue* empties it.
 - **Shades still move while charging.** A Somfy motor ignores commands while its
   charger is connected. A Home Assistant automation pauses the charger and re-sends
   the command, and the charge resumes 2 minutes later.
@@ -130,7 +131,7 @@ The ESPHome integration picks the device up. `home-assistant/` has the rest:
 4. Build and flash: `esphome run shade-charger.yaml`, the first time over USB, then
    over Wi-Fi.
 5. On the page: assign each **Relay N shade**, measure each **Cable resistance**,
-   then press **Check all**.
+   then press **Charge Now**.
 
 Flash only when the charger is idle: a reboot opens every relay. The queue survives
 a reboot; a charge in progress does not.
@@ -143,7 +144,7 @@ and as ESPHome entities in Home Assistant.
 
 | Setting | Default | |
 |---|---|---|
-| Auto check every | 7 days | 0 = off. Counted from the last check run (scheduled or *Check all*). |
+| Auto check every | 7 days | 0 = off. Counted from the last check run (scheduled or *Charge Now*). |
 | Auto Charge Start / Stop | 02 / 08 h | Check time and charge window. Equal = no window. |
 | Charge below | 13.40 V | A checked shade under this gets charged. |
 | Max hours per shade | 8 h | |
