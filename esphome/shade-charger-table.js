@@ -96,7 +96,11 @@
     qb.onclick = () => { qb.disabled = true;
       fetch("/button/" + encodeURIComponent("Charge queue now") + "/press", { method: "POST", body: "" })
         .catch(() => {}).finally(() => setTimeout(() => { qb.disabled = false; }, 3000)); };
-    qh.appendChild(qb); qd.appendChild(qh);
+    const qc = el("button", "", "Clear queue"); qc.id = "sc-qclr"; qc.className = "";
+    qc.style.cssText = "margin-left:8px;padding:3px 10px;border-radius:6px;border:1px solid #888;background:#fafafa;cursor:pointer;font-size:13px";
+    qc.onclick = () => { if (!confirm("Remove everything waiting in the queue?")) return;
+      fetch("/button/" + encodeURIComponent("Clear queue") + "/press", { method: "POST", body: "" }).catch(() => {}); };
+    qh.appendChild(qb); qh.appendChild(qc); qd.appendChild(qh);
     const qt = el("table"); qt.id = "sc-qt";
     const qhr = el("tr"); ["#", "Shade", "Job", "When"].forEach(h => qhr.appendChild(el("th", "", h)));
     const qth = el("thead"); qth.appendChild(qhr); qt.appendChild(qth); qt.appendChild(el("tbody"));
@@ -160,9 +164,15 @@
       if (ci >= 0) { learned = learnedFull.slice(0, ci); check = learnedFull.slice(ci + 11); }
       learned = learned.replace(" - use per day known after its next full charge", "")
                        .replace("no completed charge yet", "no full charge yet");
+      // "... - start 13.04 V - end 13.31 V": the end voltage (an unfinished charge)
+      // is the newer reading; the start voltage otherwise.
       let details = line, volt = "";
       const vi = line.indexOf(" - start ");
-      if (vi >= 0) { details = line.slice(0, vi); volt = line.slice(vi + 9); }
+      if (vi >= 0) {
+        details = line.slice(0, vi);
+        const em = / - end ([0-9.]+) V/.exec(line), sm = / - start ([0-9.]+) V/.exec(line);
+        volt = em ? em[1] : (sm ? sm[1] : "");
+      }
       if (line === "never charged") details = "never charged";
       // Last check: date/time only. Battery: from the newer of the last check
       // reading and the last charge's start voltage.
@@ -173,8 +183,22 @@
       const startV = volt ? parseFloat(volt) : null;
       let v = startV;
       if (checkV && (!startV || when(checkWhen) >= when(details))) v = checkV;
-      const pct = socFromV(v);
-      const batt = pct === null ? "" : "~" + (Math.round(pct / 5) * 5) + " %";
+      // Order of preference: live while this shade is on the charger (the
+      // voltage at the shade now, same conditions as the curve); 100 % right
+      // after a "full" result (newer than the last check); the learned
+      // "now ~N%" once a shade has a use-per-day; else the newest reading.
+      let pct = socFromV(v), live = false, src = v > 0 ? v.toFixed(2) + " V" : "";
+      const runNow = st("text_sensor/Status");
+      if (runNow.startsWith(name + ":") && / A \(peak/.test(runNow)) {
+        const bv = parseFloat(st("sensor/Charge voltage")), ba = parseFloat(st("sensor/Charge current"));
+        const r = parseFloat(st("number/Cable resistance " + name)) || 0;
+        if (bv > 0 && ba > 0) { const lv = bv - r * ba; pct = Math.min(99, socFromV(lv)); live = true; src = lv.toFixed(2) + " V"; }
+      } else {
+        const lm = /now ~(\d+)%/.exec(learnedFull);
+        if (/ - full/.test(details) && when(details) >= when(checkWhen)) { pct = 100; src = "full"; }
+        else if (lm) { pct = parseFloat(lm[1]); src = "learned"; }
+      }
+      const batt = pct === null ? "" : "~" + (Math.round(pct / 5) * 5) + " %" + (src ? " \u00b7 " + src : "") + (live ? " \u26a1" : "");
 
       const tr = el("tr");
       tr.appendChild(el("td", "name", name));
@@ -218,8 +242,9 @@
         if (k < 0) continue;
         const what = it.slice(k + 2);
         const m = /^charge from (\d\d:\d\d)$/.exec(what);
+        const held = /^Stopped - queue held/.test(s);
         row([String(++n), it.slice(0, k), what === "check" ? "check" : "charge",
-             m ? "waits for " + m[1] : "next up"]);
+             held ? "held (Charge queue now)" : m ? "waits for " + m[1] : "next up"]);
       }
     }
     if (!run && n === 0) row(["", "empty", "", ""], "sc-dim");

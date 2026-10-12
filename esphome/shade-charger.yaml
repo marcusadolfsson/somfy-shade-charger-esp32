@@ -171,6 +171,9 @@ time:
           - lambda: "for (int p = 0; p < 8; p++) id(learn_update)->execute(p);"
           # Waiting entries say "from HH:00" outside the window; refresh hourly.
           - lambda: "id(q_publish)->execute(); id(next_check_update)->execute();"
+          # Rebuild each shade's last-charge line from the saved data (a line was
+          # once seen cut short on the device while HA had it whole).
+          - lambda: "for (int p = 0; p < 8; p++) id(port_summary_update)->execute(p);"
           - lambda: |-
               int days = (int) id(auto_days).state;   // "Auto check every"
               auto t = id(sntp_time).now();
@@ -267,12 +270,18 @@ globals:
   # Which shade the fault happened on (-1 = the charger itself: supply voltage).
   - { id: fault_shade, type: int, restore_value: true, initial_value: "-1" }  # 1 overcurrent, 2 sensor, 3 watchdog, 4 supply low, 5 supply high
   - { id: last_auto, type: uint32_t, restore_value: true, initial_value: "0" }
+  # Stop holds the queue (nothing new starts) until Charge queue now, or a manual
+  # Charge / Charge all / Check all. Kept across reboots.
+  - { id: held, type: bool, restore_value: true, initial_value: "false" }
   - { id: last_epoch, type: "std::array<uint32_t, 8>", restore_value: true, initial_value: "std::array<uint32_t, 8>{}" }
   - { id: last_ah, type: "std::array<float, 8>", restore_value: true, initial_value: "std::array<float, 8>{}" }
   - { id: last_min, type: "std::array<uint16_t, 8>", restore_value: true, initial_value: "std::array<uint16_t, 8>{}" }
   # Voltage at the end of Settle, with the pack drawing. Logged to see whether it
   # predicts how much the pack then takes (state of charge is otherwise unknown).
   - { id: last_v, type: "std::array<float, 8>", restore_value: true, initial_value: "std::array<float, 8>{}" }
+  # Voltage at the shade when an unfinished charge ended (stopped, time cap,
+  # dropped out, window end): the newest reading for the battery estimate.
+  - { id: last_endv, type: "std::array<float, 8>", restore_value: true, initial_value: "std::array<float, 8>{}" }
   - { id: sess_v, type: float, initial_value: "0" }
   # 0 never, 1 full, 2 no draw, 3 time cap, 4 overcurrent, 5 stopped, 6 sensor fault,
   # 7 dropped out (current vanished mid-charge), 8 full, cable-limited (stalled taper),
@@ -409,11 +418,21 @@ button:
     web_server: { sorting_group_id: g_control, sorting_weight: 3 }
     on_press:
       - lambda: |-
+          id(held) = false;
           for (int i = 0; i < id(qn); i++) if (id(qk)[i] == 2) id(qk)[i] = 0;
           if (id(active) >= 0 && id(active_kind) == 2) id(active_kind) = 0;
           id(q_publish)->execute();
-  - { platform: template, name: "Check all", web_server: { sorting_group_id: g_control, sorting_weight: 2 }, on_press: { lambda: "if (!id(halted)) { for (int p = 0; p < 8; p++) id(q_add)->execute(p, 1); id(run_mask) = 0xFF; auto t = id(sntp_time).now(); if (t.is_valid()) id(last_auto) = t.timestamp; id(next_check_update)->execute(); }" } }
-  - { platform: template, name: "Charge all", web_server: { sorting_group_id: g_control, sorting_weight: 1 }, on_press: { lambda: "if (!id(halted)) for (int p = 0; p < 8; p++) id(q_add)->execute(p, 0);" } }
+  - platform: template
+    name: "Clear queue"
+    icon: mdi:playlist-remove
+    web_server: { sorting_group_id: g_control, sorting_weight: 7 }
+    on_press:
+      - lambda: |-
+          id(qn) = 0; id(run_mask) = 0; id(held) = false;
+          id(q_publish)->execute();
+          if (id(active) < 0) { id(status).publish_state("Queue cleared"); id(result_shown) = true; }
+  - { platform: template, name: "Check all", web_server: { sorting_group_id: g_control, sorting_weight: 2 }, on_press: { lambda: "if (!id(halted)) { id(held) = false; for (int p = 0; p < 8; p++) id(q_add)->execute(p, 1); id(run_mask) = 0xFF; auto t = id(sntp_time).now(); if (t.is_valid()) id(last_auto) = t.timestamp; id(next_check_update)->execute(); }" } }
+  - { platform: template, name: "Charge all", web_server: { sorting_group_id: g_control, sorting_weight: 1 }, on_press: { lambda: "if (!id(halted)) { id(held) = false; for (int p = 0; p < 8; p++) id(q_add)->execute(p, 0); }" } }
   - { platform: template, name: "Stop", web_server: { sorting_group_id: g_control, sorting_weight: 4 }, on_press: { lambda: "id(stop_req) = true;" } }
   - platform: template
     name: "Clear fault"
@@ -424,14 +443,14 @@ button:
           id(fault_code) = 0;
           id(fault_shade) = -1;
           id(status).publish_state("Idle");
-  - { platform: template, name: "Charge ${shade1}", web_server: { sorting_group_id: g_one, sorting_weight: 1 }, on_press: { lambda: "if (!id(halted)) id(q_add)->execute(0, 0);" } }
-  - { platform: template, name: "Charge ${shade2}", web_server: { sorting_group_id: g_one, sorting_weight: 2 }, on_press: { lambda: "if (!id(halted)) id(q_add)->execute(1, 0);" } }
-  - { platform: template, name: "Charge ${shade3}", web_server: { sorting_group_id: g_one, sorting_weight: 3 }, on_press: { lambda: "if (!id(halted)) id(q_add)->execute(2, 0);" } }
-  - { platform: template, name: "Charge ${shade4}", web_server: { sorting_group_id: g_one, sorting_weight: 4 }, on_press: { lambda: "if (!id(halted)) id(q_add)->execute(3, 0);" } }
-  - { platform: template, name: "Charge ${shade5}", web_server: { sorting_group_id: g_one, sorting_weight: 5 }, on_press: { lambda: "if (!id(halted)) id(q_add)->execute(4, 0);" } }
-  - { platform: template, name: "Charge ${shade6}", web_server: { sorting_group_id: g_one, sorting_weight: 6 }, on_press: { lambda: "if (!id(halted)) id(q_add)->execute(5, 0);" } }
-  - { platform: template, name: "Charge ${shade7}", web_server: { sorting_group_id: g_one, sorting_weight: 7 }, on_press: { lambda: "if (!id(halted)) id(q_add)->execute(6, 0);" } }
-  - { platform: template, name: "Charge ${shade8}", web_server: { sorting_group_id: g_one, sorting_weight: 8 }, on_press: { lambda: "if (!id(halted)) id(q_add)->execute(7, 0);" } }
+  - { platform: template, name: "Charge ${shade1}", web_server: { sorting_group_id: g_one, sorting_weight: 1 }, on_press: { lambda: "if (!id(halted)) { id(held) = false; id(q_add)->execute(0, 0); }" } }
+  - { platform: template, name: "Charge ${shade2}", web_server: { sorting_group_id: g_one, sorting_weight: 2 }, on_press: { lambda: "if (!id(halted)) { id(held) = false; id(q_add)->execute(1, 0); }" } }
+  - { platform: template, name: "Charge ${shade3}", web_server: { sorting_group_id: g_one, sorting_weight: 3 }, on_press: { lambda: "if (!id(halted)) { id(held) = false; id(q_add)->execute(2, 0); }" } }
+  - { platform: template, name: "Charge ${shade4}", web_server: { sorting_group_id: g_one, sorting_weight: 4 }, on_press: { lambda: "if (!id(halted)) { id(held) = false; id(q_add)->execute(3, 0); }" } }
+  - { platform: template, name: "Charge ${shade5}", web_server: { sorting_group_id: g_one, sorting_weight: 5 }, on_press: { lambda: "if (!id(halted)) { id(held) = false; id(q_add)->execute(4, 0); }" } }
+  - { platform: template, name: "Charge ${shade6}", web_server: { sorting_group_id: g_one, sorting_weight: 6 }, on_press: { lambda: "if (!id(halted)) { id(held) = false; id(q_add)->execute(5, 0); }" } }
+  - { platform: template, name: "Charge ${shade7}", web_server: { sorting_group_id: g_one, sorting_weight: 7 }, on_press: { lambda: "if (!id(halted)) { id(held) = false; id(q_add)->execute(6, 0); }" } }
+  - { platform: template, name: "Charge ${shade8}", web_server: { sorting_group_id: g_one, sorting_weight: 8 }, on_press: { lambda: "if (!id(halted)) { id(held) = false; id(q_add)->execute(7, 0); }" } }
 
 text_sensor:
   - platform: template
@@ -768,7 +787,9 @@ script:
           int n = snprintf(buf, sizeof(buf), "%s - %s - %.3f Ah - %u min", when.c_str(), res[r],
                            id(last_ah)[p], (unsigned) id(last_min)[p]);
           if (id(last_v)[p] > 0 && n > 0 && n < (int) sizeof(buf))
-            snprintf(buf + n, sizeof(buf) - n, " - start %.2f V", id(last_v)[p]);
+            n += snprintf(buf + n, sizeof(buf) - n, " - start %.2f V", id(last_v)[p]);
+          if (id(last_endv)[p] > 0 && n > 0 && n < (int) sizeof(buf))
+            snprintf(buf + n, sizeof(buf) - n, " - end %.2f V", id(last_endv)[p]);
           ts[p]->publish_state(buf);
 
 interval:
@@ -797,6 +818,7 @@ interval:
               id(last_min)[p] = (uint16_t) ((now - id(t_start)) / 60000u);
               id(last_res)[p] = result;
               id(last_v)[p] = id(sess_v);
+              id(last_endv)[p] = (result != 1 && result != 2 && id(pre_v) > 0) ? id(pre_v) : 0;
               id(port_summary_update)->execute(p);
               // Not history: nothing delivered, or a charge cut by the window (it
               // resumes as a new charge next window).
@@ -845,11 +867,19 @@ interval:
 
           if (id(stop_req)) {
             id(stop_req) = false;
-            id(qn) = 0; id(run_mask) = 0;
+            int sp = id(active), sk = id(is_check) ? 1 : id(active_kind);
+            if (sp >= 0 && id(is_check)) end_check(false);
+            else if (sp >= 0) finish(5); else all_off();
+            // The stopped job goes back to the front, so resuming loses nothing.
+            if (sp >= 0 && id(qn) < 16) {
+              for (int i = id(qn); i > 0; i--) { id(qs)[i] = id(qs)[i - 1]; id(qk)[i] = id(qk)[i - 1]; }
+              id(qs)[0] = sp; id(qk)[0] = sk; id(qn)++;
+            }
+            id(held) = true;
             id(q_publish)->execute();
-            if (id(active) >= 0 && id(is_check)) end_check(false);
-            else if (id(active) >= 0) finish(5); else all_off();
-            id(status).publish_state("Stopped");
+            char m[96];
+            snprintf(m, sizeof(m), "Stopped - queue held (%d queued), Charge queue now resumes", id(qn));
+            id(status).publish_state(m);
             id(result_shown) = true;
             return;
           }
@@ -928,7 +958,7 @@ interval:
           char st[96];
           switch (id(phase)) {
             case 0: {  // idle: start the next queued port
-              if (id(halted)) return;
+              if (id(halted) || id(held)) return;
               // Check run finished (no checks left in the queue): record the summary.
               // (Each shade's charge was queued, in voltage order, as its check ended.)
               bool checks_left = false;
@@ -1085,7 +1115,11 @@ interval:
               } else if (id(below_since) == 0) {
                 id(below_since) = now;
               } else if (now - id(below_since) >= 120000u) {
-                bool real = id(pre_a) < 0.5f && id(pre_v) >= 13.4f;
+                // A pack stops itself near the top (>= 13.4 V at the shade) once its
+                // current has already tapered; packs seen stopping at 0.31-0.52 A
+                // (higher on the 0.98 A charger). Vanishing at full charge current,
+                // or at a low voltage, is the connection, not the pack.
+                bool real = id(pre_v) >= 13.4f && id(pre_a) < 0.8f * id(peak_a);
                 if (!real) {
                   char m[96];
                   snprintf(m, sizeof(m), "%s: DROPPED OUT at %.2f V / %.2f A - check fuse and plug",

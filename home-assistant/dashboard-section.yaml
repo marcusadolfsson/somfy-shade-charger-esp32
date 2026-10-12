@@ -53,7 +53,10 @@
               {%- set check_v = cm[0][1] | float(0) if cm else 0 -%}
               {%- set cp = line.split(' - start ') -%}
               {%- set details = cp[0] -%}
-              {%- set start_v = cp[1] | replace(' V', '') | float(0) if cp | count > 1 else 0 -%}
+              {%- set em = line | regex_findall(' - end ([0-9.]+) V') -%}
+                    {%- set sm = line | regex_findall(' - start ([0-9.]+) V') -%}
+                    {#- an unfinished charge's end voltage is the newer reading -#}
+                    {%- set start_v = (em[0] | float(0)) if em else ((sm[0] | float(0)) if sm else 0) -%}
               {%- set cw = strptime(check_when[:12], '%b %d %H:%M', none) -%}
               {%- set dw = strptime(details[:12], '%b %d %H:%M', none) -%}
               {%- set v = check_v if check_v > 0 and (start_v == 0 or (cw and dw and cw >= dw) or not dw) else start_v -%}
@@ -62,7 +65,21 @@
                 {%- if v <= curve[0][0] %}{% set ns.p = 0 %}{% elif v >= curve[-1][0] %}{% set ns.p = 100 %}
                 {%- else %}{% for i in range(1, curve | count) %}{% if ns.p is none and v <= curve[i][0] %}{% set ns.p = curve[i-1][1] + (curve[i][1] - curve[i-1][1]) * (v - curve[i-1][0]) / (curve[i][0] - curve[i-1][0]) %}{% endif %}{% endfor %}{% endif -%}
               {%- endif -%}
-              {%- set batt = ('~' ~ ((ns.p / 5) | round(0) * 5) | int ~ ' %') if ns.p is not none else '—' -%}
+              {#- live while charging (voltage at the shade now), 100 after a "full" newer than the last check, else the learned "now ~N%", else the newest reading -#}
+                    {%- set lv = states('sensor.shade_charger_voltage_' ~ slug) | float(0) -%}
+                    {%- set charging_now = s.startswith(name ~ ':') and ' A (peak' in s -%}
+                    {%- set ln = lfull | regex_findall('now ~([0-9]+)%') -%}
+                    {%- set live = namespace(on=false, src=(('%.2f' | format(v)) ~ ' V') if v > 0 else '') -%}
+                    {%- if charging_now and lv > 0 -%}
+                      {%- set ns.p = none -%}{%- set live.on = true -%}{%- set live.src = ('%.2f' | format(lv)) ~ ' V' -%}
+                      {%- if lv <= curve[0][0] %}{% set ns.p = 0 %}{% elif lv >= curve[-1][0] %}{% set ns.p = 99 %}
+                      {%- else %}{% for i in range(1, curve | count) %}{% if ns.p is none and lv <= curve[i][0] %}{% set ns.p = curve[i-1][1] + (curve[i][1] - curve[i-1][1]) * (lv - curve[i-1][0]) / (curve[i][0] - curve[i-1][0]) %}{% endif %}{% endfor %}{% endif -%}
+                    {%- elif ' - full' in details and (not cw or not dw or dw >= cw) -%}
+                      {%- set ns.p = 100 -%}{%- set live.src = 'full' -%}
+                    {%- elif ln -%}
+                      {%- set ns.p = ln[0] | float -%}{%- set live.src = 'learned' -%}
+                    {%- endif -%}
+                    {%- set batt = ('~' ~ ((ns.p / 5) | round(0) * 5) | int ~ ' %' ~ ((' · ' ~ live.src) if live.src else '') ~ (' ⚡' if live.on else '')) if ns.p is not none else '—' -%}
               {%- set st = namespace(t='Idle') -%}
               {%- if s.startswith('FAULT') -%}
                 {%- set fm = s | regex_findall('^FAULT - (.+?) on (.+?), press') -%}
@@ -112,14 +129,14 @@
               {% if run %}| ▶ | {{ run[0] }} | {{ 'check' if 'checking' in s else 'charge' }} | running now |
               {% endif %}{% for it in qitems -%}
               {%- set k = it.split(': ') -%}{%- set what = k[1:] | join(': ') -%}
-              | {{ loop.index }} | {{ k[0] }} | {{ 'check' if what == 'check' else 'charge' }} | {{ ('waits for ' ~ what[12:]) if what.startswith('charge from') else 'next up' }} |
+              | {{ loop.index }} | {{ k[0] }} | {{ 'check' if what == 'check' else 'charge' }} | {{ 'held (Charge queue now)' if s.startswith('Stopped - queue held') else (('waits for ' ~ what[12:]) if what.startswith('charge from') else 'next up') }} |
               {% endfor %}
               {% endif %}
 
               [Charger's own page ↗](http://shade-charger.local) (home network)
           # Controls: compact tiles that press the charger's buttons.
           - type: grid
-            columns: 6
+            columns: 7
             square: false
             grid_options: { columns: full }
             visibility:
@@ -162,6 +179,13 @@
                 hide_state: true
                 tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_clear_fault } }
                 icon_tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_clear_fault } }
+              - type: tile
+                entity: button.shade_charger_clear_queue
+                name: Clear queue
+                icon: mdi:playlist-remove
+                hide_state: true
+                tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_clear_queue }, confirmation: { text: "Remove everything waiting in the queue?" } }
+                icon_tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_clear_queue }, confirmation: { text: "Remove everything waiting in the queue?" } }
               - type: tile
                 entity: switch.shade_charger_pause_charging
                 name: Pause

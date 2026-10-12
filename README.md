@@ -22,15 +22,21 @@ charging that happens overnight without anyone plugging cables in.
 - **Charge window.** Automatic charges run between two hours (default 02:00–08:00).
   A charge still running at the end stops and resumes the next night. Checks and
   manual charges run any time; *Charge queue now* ignores the window.
-- **Knows when a pack is full, or when it isn't.** The pack ends its own charge
-  (the current steps from ~0.33 A to 0). The charger tells that apart from a blown
-  fuse or loose plug (**DROPPED OUT**), a run whose cable is too long to finish
-  (**full (cable-limited)**), and a pack that never stops (**time cap**).
+- **Knows when a pack is full, or when it isn't.** The pack ends its own charge:
+  the current steps to 0 near the top (seen from 0.31–0.52 A). It counts as
+  **full** when that happens at ≥ 13.4 V at the shade, after the current has already
+  tapered below 80 % of its peak. Vanishing at full charge current, or at a low
+  voltage, is a blown fuse or loose plug (**DROPPED OUT**). A taper that stops moving
+  is a cable too long to finish (**full (cable-limited)**), and a pack that never
+  stops hits the **time cap**.
 - **Safety faults latch** until cleared, and name the shade: overcurrent, current
   sensor failure, a relay watchdog, and the supply voltage being out of range.
 - **Per-shade history and learning:** the last 8 charges, the largest charge (a
   capacity floor), Ah used per day, an estimated charge level, and a voltage→Ah fit
   once there are enough charges.
+- **Stop holds, it doesn't clear.** *Stop* ends the running job, puts it back at the
+  front of the queue and holds the queue; *Charge queue now* resumes it (as does any
+  manual *Charge*). *Clear queue* empties it.
 - **Shades still move while charging.** A Somfy motor ignores commands while its
   charger is connected. A Home Assistant automation pauses the charger and re-sends
   the command, and the charge resumes 2 minutes later.
@@ -63,8 +69,8 @@ ESP32 mid-charge. *Last restart reason* on the page tells a brownout from a cras
 
 - **The charger sets the current; the pack only decides when to stop.** In bulk
   the pack takes whatever the charger can give, and its controller cuts off at
-  ~0.31–0.35 A. A full pack still takes a short top-up (~0.03 Ah) whenever it is
-  reconnected.
+  ~0.31–0.35 A on a 0.74 A charger, ~0.52 A on a 0.98 A one. A full pack still
+  takes a short top-up (~0.03 Ah) whenever it is reconnected.
 - **Cable resistance matters, but less than you'd think.** Runs measured 0.5–1.1 Ω
   out and back (fuse, relay, cable, joints). Because the pack's cutoff is a current,
   a 1.1 Ω run still finished "full". The thin factory charge lead (~22–24 AWG) cost
@@ -86,6 +92,11 @@ check, cable-corrected) onto a curve built from the first packs measured:
 | 12.26 | 9 |
 | 13.20 | 67 |
 | 13.60 | 100 |
+
+It updates **live while a shade charges** (from the voltage at the shade now), shows
+**100 %** after a full charge, keeps the **end voltage** of a charge that stopped
+early, and switches to the shade's learned "now ~%" once it has a use-per-day. The
+column shows what each figure is based on, e.g. `~55 % · 13.04 V`, `~100 % · full`.
 
 It's rough. It assumes ~2.5 Ah packs, and the voltage also depends on the charge
 current (a full pack draws little, so it reads lower). A full charge from low gives
