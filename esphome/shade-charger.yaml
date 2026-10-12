@@ -35,7 +35,7 @@
 #      or `Max hours` -> "time cap"; or over `Overcurrent` -> stop everything
 #      and refuse to continue until "Clear fault"
 #   4. 5 s gap, next queued shade
-# A CHECK RUN (weekly by default, or "Check all") is two passes: first every
+# A CHECK RUN (weekly by default, or "Charge Now") is two passes: first every
 # shade gets step 1 only -- read the voltage at the end of Settle, open the relay
 # (~6 mAh in), log it; then the shades under `Charge below` are charged, lowest
 # voltage first.
@@ -182,6 +182,7 @@ time:
               if (t.timestamp - id(last_auto) < (uint32_t) days * 86400u - 3600u) return;
               id(last_auto) = t.timestamp;
               id(next_check_update)->execute();
+              id(run_manual) = false;
               for (int p = 0; p < 8; p++) id(q_add)->execute(p, 1);
               id(run_mask) = 0xFF;
               ESP_LOGI("charger", "scheduled check: all shades queued");
@@ -270,9 +271,13 @@ globals:
   # Which shade the fault happened on (-1 = the charger itself: supply voltage).
   - { id: fault_shade, type: int, restore_value: true, initial_value: "-1" }  # 1 overcurrent, 2 sensor, 3 watchdog, 4 supply low, 5 supply high
   - { id: last_auto, type: uint32_t, restore_value: true, initial_value: "0" }
-  # Stop holds the queue (nothing new starts) until Charge queue now, or a manual
-  # Charge / Charge all / Check all. Kept across reboots.
+  # Stop holds the queue (nothing new starts) until Charge Now or a shade's own
+  # Charge button. Kept across reboots.
   - { id: held, type: bool, restore_value: true, initial_value: "false" }
+  # The check run in progress was started by Charge Now: its charges run at once
+  # (manual), instead of waiting for the Auto Charge window.
+  - { id: run_manual, type: bool, restore_value: true, initial_value: "false" }
+  - { id: check_front, type: bool, initial_value: "false" }
   - { id: last_epoch, type: "std::array<uint32_t, 8>", restore_value: true, initial_value: "std::array<uint32_t, 8>{}" }
   - { id: last_ah, type: "std::array<float, 8>", restore_value: true, initial_value: "std::array<float, 8>{}" }
   - { id: last_min, type: "std::array<uint16_t, 8>", restore_value: true, initial_value: "std::array<uint16_t, 8>{}" }
@@ -410,18 +415,6 @@ button:
           for (int p : {a, b}) { id(port_summary_update)->execute(p); id(learn_update)->execute(p); }
           ESP_LOGI("charger", "history moved: shade %d -> %d", a, b);
           id(status).publish_state("History moved");
-  # Run the whole queue now: waiting automatic charges become manual ones, so
-  # nothing waits for, or is stopped by, the Auto Charge Start/Stop hours.
-  - platform: template
-    name: "Charge queue now"
-    icon: mdi:playlist-play
-    web_server: { sorting_group_id: g_control, sorting_weight: 3 }
-    on_press:
-      - lambda: |-
-          id(held) = false;
-          for (int i = 0; i < id(qn); i++) if (id(qk)[i] == 2) id(qk)[i] = 0;
-          if (id(active) >= 0 && id(active_kind) == 2) id(active_kind) = 0;
-          id(q_publish)->execute();
   - platform: template
     name: "Clear queue"
     icon: mdi:playlist-remove
@@ -431,9 +424,29 @@ button:
           id(qn) = 0; id(run_mask) = 0; id(held) = false;
           id(q_publish)->execute();
           if (id(active) < 0) { id(status).publish_state("Queue cleared"); id(result_shown) = true; }
-  - { platform: template, name: "Check all", web_server: { sorting_group_id: g_control, sorting_weight: 2 }, on_press: { lambda: "if (!id(halted)) { id(held) = false; for (int p = 0; p < 8; p++) id(q_add)->execute(p, 1); id(run_mask) = 0xFF; auto t = id(sntp_time).now(); if (t.is_valid()) id(last_auto) = t.timestamp; id(next_check_update)->execute(); }" } }
-  - { platform: template, name: "Charge all", web_server: { sorting_group_id: g_control, sorting_weight: 1 }, on_press: { lambda: "if (!id(halted)) { id(held) = false; for (int p = 0; p < 8; p++) id(q_add)->execute(p, 0); }" } }
-  - { platform: template, name: "Stop", web_server: { sorting_group_id: g_control, sorting_weight: 4 }, on_press: { lambda: "id(stop_req) = true;" } }
+  # Charge Now: release a held queue, make any waiting automatic charges run now,
+  # check every shade first, then charge the ones under "Charge below", lowest
+  # voltage first, right away (ignores the Auto Charge window). Restarts the
+  # weekly clock.
+  - platform: template
+    name: "Charge Now"
+    icon: mdi:battery-charging-high
+    web_server: { sorting_group_id: g_control, sorting_weight: 1 }
+    on_press:
+      - lambda: |-
+          if (id(halted)) return;
+          id(held) = false;
+          for (int i = 0; i < id(qn); i++) if (id(qk)[i] == 2) id(qk)[i] = 0;
+          if (id(active) >= 0 && id(active_kind) == 2) id(active_kind) = 0;
+          id(run_manual) = true;
+          id(check_front) = true;
+          for (int p = 0; p < 8; p++) id(q_add)->execute(p, 1);
+          id(check_front) = false;
+          id(run_mask) = 0xFF;
+          auto t = id(sntp_time).now();
+          if (t.is_valid()) id(last_auto) = t.timestamp;
+          id(next_check_update)->execute();
+  - { platform: template, name: "Stop", web_server: { sorting_group_id: g_control, sorting_weight: 2 }, on_press: { lambda: "id(stop_req) = true;" } }
   - platform: template
     name: "Clear fault"
     web_server: { sorting_group_id: g_control, sorting_weight: 5 }
@@ -517,8 +530,9 @@ script:
           // ones, which run at once anyway): a check run reads every shade before
           // any automatic charge starts, and each reading re-sorts those charges.
           int at = id(qn);
-          if (kind == 1)
-            for (int i = 0; i < id(qn); i++) if (id(qk)[i] == 2) { at = i; break; }
+          if (kind == 1)   // checks: ahead of every waiting charge (Charge Now) or of the automatic ones
+            for (int i = 0; i < id(qn); i++)
+              if (id(qk)[i] == 2 || (id(check_front) && id(qk)[i] == 0)) { at = i; break; }
           for (int i = id(qn); i > at; i--) { id(qs)[i] = id(qs)[i - 1]; id(qk)[i] = id(qk)[i - 1]; }
           id(qs)[at] = p; id(qk)[at] = kind; id(qn)++;
           id(q_publish)->execute();
@@ -535,25 +549,26 @@ script:
     then:
       - lambda: |-
           if (p < 0 || p > 7) return;
+          const int kq = id(run_manual) ? 0 : 2;   // Charge Now's charges run at once
           for (int i = 0; i < id(qn); ) {
-            if (id(qs)[i] == p && id(qk)[i] == 2) {
+            if (id(qs)[i] == p && (id(qk)[i] == 2 || (kq == 0 && id(qk)[i] == 0))) {
               for (int k = i; k < id(qn) - 1; k++) { id(qs)[k] = id(qs)[k + 1]; id(qk)[k] = id(qk)[k + 1]; }
               id(qn)--;
             } else i++;
           }
           float v = id(chk_v)[p];
           bool manual = false;
-          for (int i = 0; i < id(qn); i++) if (id(qs)[i] == p && id(qk)[i] == 0) manual = true;
+          if (kq == 2) for (int i = 0; i < id(qn); i++) if (id(qs)[i] == p && id(qk)[i] == 0) manual = true;
           if (!(v > 0 && v < id(charge_below_v).state) || manual || id(qn) >= 16) { id(q_publish)->execute(); return; }
           int at = 0;
           for (int i = 0; i < id(qn); i++) if (id(qk)[i] == 1) at = i + 1;     // behind the checks
-          while (at < id(qn) && !(id(qk)[at] == 2 && id(chk_v)[id(qs)[at]] > v)) at++;
+          while (at < id(qn) && !(id(qk)[at] == kq && id(chk_v)[id(qs)[at]] > v)) at++;
           for (int i = id(qn); i > at; i--) { id(qs)[i] = id(qs)[i - 1]; id(qk)[i] = id(qk)[i - 1]; }
-          id(qs)[at] = p; id(qk)[at] = 2; id(qn)++;
+          id(qs)[at] = p; id(qk)[at] = kq; id(qn)++;
           id(q_publish)->execute();
 
   # "Next auto check": the first Auto Charge Start hour at least (Auto check
-  # every) days after the last check run -- scheduled or Check all.
+  # every) days after the last check run -- scheduled or Charge Now.
   - id: next_check_update
     mode: queued
     max_runs: 5
@@ -878,7 +893,7 @@ interval:
             id(held) = true;
             id(q_publish)->execute();
             char m[96];
-            snprintf(m, sizeof(m), "Stopped - queue held (%d queued), Charge queue now resumes", id(qn));
+            snprintf(m, sizeof(m), "Stopped - queue held (%d queued), Charge Now resumes", id(qn));
             id(status).publish_state(m);
             id(result_shown) = true;
             return;

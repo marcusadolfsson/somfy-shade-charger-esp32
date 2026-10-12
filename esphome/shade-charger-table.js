@@ -91,10 +91,10 @@
     scroll.appendChild(t); wrap.appendChild(scroll);
     const qd = el("div"); qd.id = "sc-q";
     const qh = el("h3", "", "Queue");
-    const qb = el("button", "", "Charge queue now"); qb.id = "sc-qbtn";
-    qb.title = "Run every queued charge now, ignoring the Auto Charge Start/Stop hours";
+    const qb = el("button", "", "Charge Now"); qb.id = "sc-qbtn";
+    qb.title = "Check every shade, then charge the ones that need it, lowest first, now";
     qb.onclick = () => { qb.disabled = true;
-      fetch("/button/" + encodeURIComponent("Charge queue now") + "/press", { method: "POST", body: "" })
+      fetch("/button/" + encodeURIComponent("Charge Now") + "/press", { method: "POST", body: "" })
         .catch(() => {}).finally(() => setTimeout(() => { qb.disabled = false; }, 3000)); };
     const qc = el("button", "", "Clear queue"); qc.id = "sc-qclr"; qc.className = "";
     qc.style.cssText = "margin-left:8px;padding:3px 10px;border-radius:6px;border:1px solid #888;background:#fafafa;cursor:pointer;font-size:13px";
@@ -244,7 +244,7 @@
         const m = /^charge from (\d\d:\d\d)$/.exec(what);
         const held = /^Stopped - queue held/.test(s);
         row([String(++n), it.slice(0, k), what === "check" ? "check" : "charge",
-             held ? "held (Charge queue now)" : m ? "waits for " + m[1] : "next up"]);
+             held ? "held (Charge Now)" : m ? "waits for " + m[1] : "next up"]);
       }
     }
     if (!run && n === 0) row(["", "empty", "", ""], "sc-dim");
@@ -262,11 +262,11 @@
     const until = num("number/Auto Charge Stop", 8);
     const uu = String(Math.round(until)).padStart(2, "0");
     const winTxt = Math.round(until) === Math.round(hour) ? "any time"
-      : `only between <b>${hh}:00 and ${uu}:00</b>; one still running at ${uu}:00 stops and goes back to the front of the queue, and the queue picks up again at ${hh}:00 the next day (<i>Charge queue now</i> runs it immediately and ignores these hours)`;
+      : `only between <b>${hh}:00 and ${uu}:00</b>; one still running at ${uu}:00 stops and goes back to the front of the queue, and the queue picks up again at ${hh}:00 the next day`;
     const qtxt = st("text_sensor/Queue");
     const head = every > 0
-      ? `<b>Auto check:</b> every <b>${every} day${every === 1 ? "" : "s"} at ${hh}:00</b> (Auto Charge Start), counted from the last check run (scheduled or <i>Check all</i>), the charger checks each shade in turn.`
-      : `<b>Auto check is off</b> (set <i>Auto check every</i> above 0). <i>Check all</i> runs one now.`;
+      ? `<b>Auto check:</b> every <b>${every} day${every === 1 ? "" : "s"} at ${hh}:00</b> (Auto Charge Start), counted from the last check run (scheduled or <i>Charge Now</i>), the charger checks each shade in turn.`
+      : `<b>Auto check is off</b> (set <i>Auto check every</i> above 0). <i>Charge Now</i> runs one now.`;
     const last = st("text_sensor/Last check run");
     const nxt = st("text_sensor/Next auto check");
     const lastHtml = (nxt ? `<div style="margin-bottom:4px"><b>Next auto check:</b> ${nxt.replace(/[<>&]/g, "")}</div>` : "") +
@@ -276,7 +276,7 @@
       ` First it checks them all: each is connected for 30 s and its pack voltage read (corrected for its cable), then disconnected (~6 mAh).` +
       ` Then it queues a charge for every shade that read <b>below ${below.toFixed(2)} V</b> (very roughly 70 %), <b>lowest voltage first</b>;` +
       ` the pack ends each charge itself (at most <b>${maxh} h per shade</b>). Shades with no draw are skipped.` +
-      ` These automatic charges run ${winTxt}. Checks, and charges you start yourself (a shade's Charge button, or Charge all), run any time.` +
+      ` These automatic charges run ${winTxt}. <i>Charge Now</i> does the same check-then-charge at once, ignoring these hours; a shade's own Charge button also runs at once.` +
       ` Checks don't count as charges. A shade moved while charging still moves: HA pauses the charge for ${pause} min.`;
   }
 

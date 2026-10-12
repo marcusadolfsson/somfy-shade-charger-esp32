@@ -129,14 +129,14 @@
               {% if run %}| ▶ | {{ run[0] }} | {{ 'check' if 'checking' in s else 'charge' }} | running now |
               {% endif %}{% for it in qitems -%}
               {%- set k = it.split(': ') -%}{%- set what = k[1:] | join(': ') -%}
-              | {{ loop.index }} | {{ k[0] }} | {{ 'check' if what == 'check' else 'charge' }} | {{ 'held (Charge queue now)' if s.startswith('Stopped - queue held') else (('waits for ' ~ what[12:]) if what.startswith('charge from') else 'next up') }} |
+              | {{ loop.index }} | {{ k[0] }} | {{ 'check' if what == 'check' else 'charge' }} | {{ 'held (Charge Now)' if s.startswith('Stopped - queue held') else (('waits for ' ~ what[12:]) if what.startswith('charge from') else 'next up') }} |
               {% endfor %}
               {% endif %}
 
               [Charger's own page ↗](http://shade-charger.local) (home network)
           # Controls: compact tiles that press the charger's buttons.
           - type: grid
-            columns: 7
+            columns: 5
             square: false
             grid_options: { columns: full }
             visibility:
@@ -145,26 +145,12 @@
                 state: "on"
             cards:
               - type: tile
-                entity: button.shade_charger_charge_all
-                name: Charge all
+                entity: button.shade_charger_charge_now
+                name: Charge Now
                 icon: mdi:battery-charging-high
                 hide_state: true
-                tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_all } }
-                icon_tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_all } }
-              - type: tile
-                entity: button.shade_charger_check_all
-                name: Check all
-                icon: mdi:battery-heart-variant
-                hide_state: true
-                tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_check_all } }
-                icon_tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_check_all } }
-              - type: tile
-                entity: button.shade_charger_charge_queue_now
-                name: Charge queue now
-                icon: mdi:playlist-play
-                hide_state: true
-                tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_queue_now } }
-                icon_tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_queue_now } }
+                tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_now } }
+                icon_tap_action: { action: perform-action, perform_action: button.press, target: { entity_id: button.shade_charger_charge_now } }
               - type: tile
                 entity: button.shade_charger_stop
                 name: Stop
@@ -322,8 +308,8 @@
               {% set hh = '%02d' | format(hour) %}{% set uu = '%02d' | format(until) %}
               **Last run:** {{ states('sensor.shade_charger_last_check_run') }}
 
-              - **When:** {% if every > 0 %}every {{ every }} day{{ 's' if every != 1 }} at {{ hh }}:00, counted from the last check run (scheduled or *Check all*); next **{{ states('sensor.shade_charger_next_auto_check') }}**{% else %}off; *Check all* runs one now{% endif %}.
+              - **When:** {% if every > 0 %}every {{ every }} day{{ 's' if every != 1 }} at {{ hh }}:00, counted from the last check run (scheduled or *Charge Now*); next **{{ states('sensor.shade_charger_next_auto_check') }}**{% else %}off; *Charge Now* runs one now{% endif %}.
               - **Checks first:** every shade is connected for 30 s and its voltage read (corrected for its cable), then disconnected.
               - **Then charges** the shades under **{{ below }} V** (very roughly 70 %), **lowest voltage first**; each pack ends its own charge ({{ maxh | round(1) }} h per shade at most). No draw = skipped.
-              - **Window:** {% if until == hour %}automatic charges run any time{% else %}automatic charges run **{{ hh }}:00–{{ uu }}:00**; one still going at {{ uu }}:00 goes back to the front of the queue for the next night. *Charge queue now* ignores the window{% endif %}. Checks and manual charges run any time.
+              - **Window:** {% if until == hour %}automatic charges run any time{% else %}automatic charges run **{{ hh }}:00–{{ uu }}:00**; one still going at {{ uu }}:00 goes back to the front of the queue for the next night{% endif %}. **Charge Now** does the same check-then-charge immediately, ignoring the window; a shade's own Charge tile also runs at once.
               - **Moving a shade that's charging** still works: HA pauses the charge for {{ pause }} min and re-sends the command.
